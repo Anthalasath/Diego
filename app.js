@@ -162,6 +162,12 @@ function punishTheTroll(message) {
                 if (me.hasPermission(0x00000002)) {
                     message.reply('All right, playtime\'s over... goodbye *kick* :diegoLUL:');
 
+                    for (let i = 0; i < trolls.list.length; i++) {
+                        if (trolls.list[i].id === userID) {
+                            trolls.list[i].ignore = true;
+                            break;
+                        }
+                    }
                     setTimeout(() => {
                         message.member.kick('Don\'t abuse my warnings commands.');
                     }, 3000);
@@ -400,7 +406,10 @@ function removeWarning(index, username, message) {
 // Check every hour if it can do something interesting on its own
 setInterval(() => {
     let warned = jsonfile.readFileSync(warnedFile);
+    let trolls = jsonfile.readFileSync(trollsFile);
+    let indexToRemoveFromTrollList = [];
     
+    // Checks if it can remove users from the warned list
     for (var i = 0; i < warned.list.length; i++) {
         const hasWarnedTimePassed = (Date.now() - warned.list[i].time) >= timeBeforeUnwarned ? true : false;
         if (hasWarnedTimePassed) {
@@ -408,7 +417,24 @@ setInterval(() => {
         }
     }
 
-    // TODO Clear troll list
+    // Checks if it can remove users from the troll list
+    for (let i = 0; i < trolls.list.length; i++) {
+        const timeSinceRegistered = Date.now() - trolls.list[i].time;
+
+        if (timeSinceRegistered >= timeToGetRemovedFromTrollList) {
+            indexToRemoveFromTrollList.push(i);
+        }
+    }
+    indexToRemoveFromTrollList.forEach(index => {
+        trolls.list.splice(index, 1);
+    });
+    if (indexToRemoveFromTrollList.length !== 0) {
+        jsonfile.writeFileSync(trollsFile, trolls, err => {
+            if (err) { console.log(err); }
+        })
+    }
+    
+    
 
 }, refreshTimer);
 
