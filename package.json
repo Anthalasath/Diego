@@ -1,0 +1,21 @@
+{
+  "name": "warningbot",
+  "version": "1.0.0",
+  "description": "Bot displaying warnings and removing them",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "police",
+    "discord",
+    "moderation",
+    "warning"
+  ],
+  "author": "Anthalasath",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^11.3.0",
+    "jsonfile": "^4.0.0"
+  }
+}
