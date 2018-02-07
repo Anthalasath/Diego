@@ -1,6 +1,3 @@
-
-// TODO USER USER ID TO TAG THEM INSTEAD OF USERNAMES
-
 'use strict';
 
 const Discord = require('discord.js');
@@ -18,7 +15,7 @@ const settingsDefaultFile = './config/settings-default.json';
 // const token = process.env.TOKEN;
 
 // Use this if you're using a custom JSON file to store your token:
-const token = jsonfile.readFileSync('./config/token.json').token; 
+const token = jsonfile.readFileSync('./config/token.json').token;
 
 let refreshTimer = jsonfile.readFileSync(settingsFile).refreshTimer;
 let timeBeforeUnwarned = jsonfile.readFileSync(settingsFile).timeBeforeUnwarned;
@@ -58,7 +55,6 @@ function parseMessage(message) {
 
     let settings = jsonfile.readFileSync(settingsFile);
     let command;
-    let user;
 
     if (message.content[0] !== `${ settings.prefix }`) {
         return;
@@ -76,6 +72,13 @@ function parseMessage(message) {
         case 'removeAllWarnings':
             removeAllWarnings();
             break;
+
+        case 'clearTrollList':
+        case 'clearTrollsList':
+        case 'clearTrolls':
+            clearTrollList(message);
+            break;
+
         case 'masters':
             const masters = settings.masters;
 
@@ -111,79 +114,93 @@ function parseMessage(message) {
         return;
     }
 
-    
     if (command.slice(0, 13) === 'removeWarning') {
-        user = command.slice(14, command.length);
-        removeWarning(null, user, message);
+        const users = message.mentions.users.array();
+
+        users.forEach(user => {
+            removeWarning(null, user, message);
+        });
         return;
     }
     if (command.slice(0, 7) === 'warning' || command.slice(0, 4) === 'warn') {
-        if (command.slice(0, 7) === 'warning') {
-            user = command.slice(8, command.length);
-    
-        } else if (command.slice(0, 4) === 'warn') {
-            user = command.slice(5, command.length);
-        }
-        if (user) {
+        const users = message.mentions.users.array();
+
+        users.forEach(user => {
             warnUser(message, user);
-        }
+        });
+        return;
     }
 }
 
 
 function punishTheTroll(message) {
-    let username = message.author.username;
-    let userID = message.author.id;
+
     let trolls = jsonfile.readFileSync(trollsFile);
-    let isAlreadyATroll = false;
+    let warned = jsonfile.readFileSync(warnedFile);
+    let userID = message.author.id;
+    let username = message.author.username;
+    let isAlreadyATroll;
+    let isAlreadyWarned;
+    let indexOnTrollList;
 
     for (let i = 0; i < trolls.list.length; i++) {
-        if (troll.list[i].id === userID) {
-            if (!troll.list[i].ignore) {
-                isAlreadyATroll = true;
-            } else {
-                // ignore trolls who come back to have fun with the bot
+        if (trolls.list[i].id === userID) {
+            isAlreadyATroll = true;
+            
+            // Ignore users who were already kicked to avoid spam
+            if (trolls.list[i].wasKicked) {
                 return;
             }
+            break;
         }
     }
-    
-    if (isAlreadyATroll) {
-        message.reply('You again ? I\'m warning you.');
-        warnUser(message, username);
 
-    } else {
-        let warned = jsonfile.readFileSync(warnedFile);
-
-        for (let i = 0; i < warned.list.length; i++) {
-            if (warned.list[i].user === username) {
-                // Kicks the user if it has the power
-                const me = message.guild.members.find(val => val.user.id === bot.user.id);
-                if (me.hasPermission(0x00000002)) {
-                    message.reply('All right, playtime\'s over... goodbye *kick* :diegoLUL:');
-
-                    for (let i = 0; i < trolls.list.length; i++) {
-                        if (trolls.list[i].id === userID) {
-                            trolls.list[i].ignore = true;
-                            break;
-                        }
-                    }
-                    setTimeout(() => {
-                        message.member.kick('Don\'t abuse my warnings commands.');
-                    }, 3000);
-                    return;
-                }
-            }
+    for (let i = 0; i < warned.list.length; i++) {
+        if (warned.list[i].id === userID) {
+            isAlreadyWarned = true;
+            indexOnTrollList = i;
+            break;
         }
-        if (!isAlreadyATroll) {
-            const trollData = {"name": username, "id": userID, "time": Date.now(), "ignore": false}
+    }
 
-            trolls.list.push(trollData);
+    if (isAlreadyATroll && isAlreadyWarned) {
+        const members = message.guild.members;
+        const userToKick = members.find('id', userID);
+        const me = members.find('id', bot.user.id);
+
+        if (me.hasPermission(0x00000002)) {
+            userToKick.kick('I told you to not abuse my warning powers...');
+            message.reply('Enough of this... goodbye *kick* :diegoLUL:');
+            
+        }
+        // Even without permissions, the bot will tag the user
+        // as "kicked", because it uses this tag to ignore users.
+        trolls.list[indexOnTrollList].wasKicked = true;
+
+    } else if (isAlreadyATroll) {
+        warnUser(message, message.author);
+        
+    } else {
+        const trollData = {"username": username, "id": userID, "time": Date.now(), "wasKicked": false};
+        trolls.list.push(trollData);
+
+        if (isAlreadyWarned) {
+            message.reply('Be carefull, you\'ve already been warned...');
+            
+        } else {
             message.reply('What are you trying to do, brah ? Wanna get a warning ? :diegoLUL:');
         }
     }
 
     jsonfile.writeFileSync(trollsFile, trolls, err => {
+        if (err) { console.log(err); }
+    });
+}
+
+
+function clearTrollList(message) {
+    message.reply('Troll list has been cleared');
+    jsonfile.writeFileSync(trollsFile, {"list":[]}, err => {
         if (err) { console.log(err); }
     });
 }
@@ -199,7 +216,7 @@ function listMyCommands(message) {
 
     // In case the name changes, we update it here
     helper += `!${ bot.user.username.toLowerCase() }: Get a list of my commands`;
-    
+
     // Messaging into DMs to avoid flood
     message.reply('Sliding into your DMs...');
     message.author.send('```\n' + helper + '\n```');
@@ -273,18 +290,20 @@ function removeMaster(message, master) {
 
 function warnUser(message, user) {
     const warned = jsonfile.readFileSync(warnedFile);
-    const warnings = message.guild.channels.find('name', 'warnings');    
+    const warnings = message.guild.channels.find('name', 'warnings');
+    const general = message.guild.channels.find('name', 'general');
     const warnedTime = new Date();
-    const warnedData = {"user": user, "time": warnedTime.getTime()};
+    const warnedData = {"username": user.username, "id": user.id, "time": warnedTime.getTime()};
 
     for (var i = 0; i < warned.list.length; i++) {
-        const username = warned.list[i].user;
-        if (user === username) {
-            message.reply(`It seems like ${ user } was already warned... \n To remove this user from the list of warned users, type !removeWarning ${ user }`);
+        const userID = warned.list[i].id;
+        if (user.id === userID) {
+            message.reply(`It seems like ${ user.username } was already warned.`);
             return;
         }
     }
-    warnings.send(`:warning: ${ user } has been warned.`);
+    general.send(`<@${ user.id }> has been warned.`);
+    warnings.send(`:warning: <@${ user.id }> has been warned.`);
     warned.list.push(warnedData);
 
     jsonfile.writeFileSync(warnedFile, warned, err => {
@@ -327,20 +346,21 @@ function removeAllWarnings() {
 
 
 // Only 2 parameters are required for this function to work properly
-function removeWarning(index, username, message) {
+function removeWarning(index, user, message) {
     const warnings = bot.channels.find(val => val.name === 'warnings');
 
     let warned = jsonfile.readFileSync(warnedFile);
     let warnedTime;
+    let userID;
+    let username;
 
-    username = username || null;
     message = message || null;
 
     if (index !== null && index >= warned.list.length) {
         index = null; // Prevents incorrect index input
     }
 
-    if (index === null && !username) {
+    if (index === null && !user) {
         if (message) {
             message.reply('Missing parameters in function call.');
         }
@@ -348,14 +368,18 @@ function removeWarning(index, username, message) {
     }
 
     // This big bloc makes sure to complete any missing parameters
-    if (index !== null && !username) {
-        username = warned.list[index].user;
-    } else if (index === null && username) { 
+    if (index !== null && !user) {
+        userID = warned.list[index].id;
+        username = warned.list[index].username;
+
+    } else if (index === null && user) {
+        username = user.username;
+        userID = user.id;
 
         for (var i = 0; i < warned.list.length; i++) {
-            if (warned.list[i].user === username) {
+            if (warned.list[i].id === userID) {
                 index = i;
-                warnedTime = new Date(warned.list[i].time); // Getting the time for later on
+                // warnedTime = new Date(warned.list[i].time); // Getting the time for later on
                 break;
             } else if (i === warned.list.length -1) {
                 if (message) {
@@ -374,8 +398,9 @@ function removeWarning(index, username, message) {
             for (let i = 0; i < messageCount; i++) {
                 let msg = messagesArr[i];
                 let content = msg.content;
-                let userToRemove = content.search(`:warning: ${ username }`);
-                if (userToRemove >= 0) {
+                // let userToRemove = content.search(`:warning: ${ username }`);
+                let userToRemove = msg.mentions.users.find(val => val.id === userID);
+                if (userToRemove) {
                     msg.delete();
                     return;
                 }
@@ -395,10 +420,10 @@ function removeWarning(index, username, message) {
     let channel;
     if (message) {
         channel = message.channel;
-        channel.send(`${ username } , your warning has been removed and your crimes expiated. CryptoJesus has forgiven your sins... for now.`)
+        channel.send(`<@${ userID }> , your warning has been removed and your crimes expiated. CryptoJesus has forgiven your sins... for now.`)
     } else {
         channel = bot.channels.find('name', 'general');
-        channel.send(`${ username } , your warning has been removed and your crimes expiated. CryptoJesus has forgiven your sins... for now.`);
+        channel.send(`<@${ userID }> , your warning has been removed and your crimes expiated. CryptoJesus has forgiven your sins... for now.`);
     }
 }
 
@@ -408,7 +433,7 @@ setInterval(() => {
     let warned = jsonfile.readFileSync(warnedFile);
     let trolls = jsonfile.readFileSync(trollsFile);
     let indexToRemoveFromTrollList = [];
-    
+
     // Checks if it can remove users from the warned list
     for (var i = 0; i < warned.list.length; i++) {
         const hasWarnedTimePassed = (Date.now() - warned.list[i].time) >= timeBeforeUnwarned ? true : false;
@@ -433,9 +458,6 @@ setInterval(() => {
             if (err) { console.log(err); }
         })
     }
-    
-    
-
 }, refreshTimer);
 
 

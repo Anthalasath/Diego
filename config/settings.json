@@ -1,1 +1,1 @@
-{"refreshTimer":3600000,"timeBeforeUnwarned":25200000,"timeToGetRemovedFromTrollList":86400 ,"prefix":"!","masters":["Trusted Members","Moderator"]}
+{"warnCheckTimer":3600000,"timeBeforeUnwarned":25200000,"trollTimer":86400,"prefix":"!","masters":["Trusted Members","Moderator"]}
