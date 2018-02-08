@@ -68,6 +68,9 @@ function parseMessage(message) {
         //         showLogs('removedWarnings');
         //     }
         // }
+        } else if (command === 'clearSpamList') {
+            clearSpamList();
+            message.reply('Spam list has been cleared');
         }
     }
 
@@ -85,7 +88,8 @@ function parseMessage(message) {
             case 'clearTrollList':
             case 'clearTrollsList':
             case 'clearTrolls':
-                clearTrollList(message);
+                clearTrollList();
+                message.reply('Troll list has been cleared');
                 break;
     
             case 'masters':
@@ -106,7 +110,7 @@ function parseMessage(message) {
                 break;
         }
     
-        if (command.toLowerCase() === `${ bot.user.username.toLowerCase() }`) {
+        if (command.toLowerCase() === bot.user.username.toLowerCase()) {
             listMyCommands(message);
             return;
         }
@@ -159,9 +163,13 @@ function parseMessage(message) {
         }
 
         // DiegoLUL
-        // TODO: don't punish for just saying !diego
-        if (command === `diego` || command.slice(0, 7) === `warning` || command.slice(0, 4) === `warn`) {
+        if (command.slice(0, 7) === `warning` || command.slice(0, 4) === `warn`) {
             punishTheTroll(message);
+        }
+
+        if (command === bot.user.username.toLowerCase()) {
+            if (!addUserToSpamList(message.author.id)) { return; } 
+            message.author.send('https://www.youtube.com/watch?v=wS9yN9YuDBg');
         }
     }
 }
@@ -233,9 +241,26 @@ function punishTheTroll(message) {
     })
 }
 
-function clearTrollList(message) {
-    message.reply('Troll list has been cleared');
-    jsonfile.writeFileSync(trollsFile, {"list":[]}, err => {
+function clearTrollList() {
+    let data = jsonfile.readFileSync(botdata);
+    let trolls = data.trolls;
+
+    trolls = [];
+
+    data.trolls = trolls;
+    jsonfile.writeFileSync(botdata, data, err => {
+        if (err) { console.log(err); }
+    })
+}
+
+function clearSpamList() {
+    let data = jsonfile.readFileSync(botdata);
+    let spams = data.spams;
+
+    spams = [];
+
+    data.spams = spams;
+    jsonfile.writeFileSync(botdata, data, err => {
         if (err) { console.log(err); }
     });
 }
@@ -284,12 +309,7 @@ function warnUser(message, user) {
     })
 }
 
-
-// Allows a user to check its own warnings
-function checkUserWarnings(message) {
-    const warnedUsers = data.warnedUsers;
-    const userID = message.author.id;
-
+function addUserToSpamList(userID) {
     let data = jsonfile.readFileSync(botdata);
     let spams = data.spams;
     let spamData;
@@ -297,10 +317,9 @@ function checkUserWarnings(message) {
     for (let i = 0; i < spams.length; i++) {
         const spammer = spams[i];
         if (spammer.id === userID) {
-            return;
+            return false;
         }
     }
-
     spamData = { "id": userID, "time": Date.now() };
     spams.push(spamData);
 
@@ -309,15 +328,28 @@ function checkUserWarnings(message) {
         if (err) { console.log(err); }
     });
 
+    return true;
+}
+
+
+// Allows a user to check its own warnings
+function checkUserWarnings(message) {
+    const userID = message.author.id;
+    const data = jsonfile.readFileSync(botdata);
+    const warnedUsers = data.warned;
+
+    if (!addUserToSpamList(userID)) { return; }
+
     for (let i = 0; i < warnedUsers.length; i++) {
         const warnedUser = warnedUsers[i];
 
         if (warnedUser.id === userID) {
             message.author.send('You currently have one warning');
+            // message.reply('You currently have one warning');
             return;
         } 
     }
-
+    // message.reply('You don\'t have any warnings');
     message.author.send('You don\'t have any warnings');
 }
 
