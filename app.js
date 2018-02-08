@@ -139,7 +139,10 @@ function parseMessage(message) {
             const users = message.mentions.users.array();
     
             users.forEach(user => {
-                warnUser(message, user);
+                // don't warn yourself
+                if (message.author.id !== user.id) { 
+                    warnUser(message, user);
+                 } 
             });
             return;
         }
@@ -147,6 +150,10 @@ function parseMessage(message) {
 
     //Commands for everyone
     if (command.toLowerCase() === `mywarning` || command.toLowerCase() === `mywarnings`) {
+
+        if (!message.member.roles.has(moderator) && !message.member.roles.has(trusted)) {
+            if (!addUserToSpamList(userID)) { return; }
+        }
         checkUserWarnings(message);
     }
 
@@ -168,7 +175,7 @@ function parseMessage(message) {
         }
 
         if (command === bot.user.username.toLowerCase()) {
-            if (!addUserToSpamList(message.author.id)) { return; } 
+            if (!addUserToSpamList(message.author.id)) { return; }
             message.author.send('https://www.youtube.com/watch?v=wS9yN9YuDBg');
         }
     }
@@ -337,8 +344,6 @@ function checkUserWarnings(message) {
     const userID = message.author.id;
     const data = jsonfile.readFileSync(botdata);
     const warnedUsers = data.warned;
-
-    if (!addUserToSpamList(userID)) { return; }
 
     for (let i = 0; i < warnedUsers.length; i++) {
         const warnedUser = warnedUsers[i];
