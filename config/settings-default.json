@@ -1,1 +1,1 @@
-{"refreshTimer":3600000,"warnTimer":604800000,"spamTimer":3600000,"trollTimer":8640000, "prefix":"!","masters":["Trusted Members","Moderator"]}
+{"name":"watcher","prefix":"!","commandTime":10000,"maxCommandsPerTime":5,"blockTime":50000,"refreshRate":600000}

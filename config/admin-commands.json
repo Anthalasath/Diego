@@ -1,0 +1,7 @@
+{ 
+        "prefix": "Change the prefix of commands",
+        "commandtime":"Time to reach may commands treshold",
+        "maxcommands":"Max commands per command time",
+        "blocktime":"Change the time Watcher blocks commands when maxcommands is reached",
+        "reset":"Reset all settings to default"
+}
