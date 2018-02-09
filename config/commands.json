@@ -1,16 +1,8 @@
 {
-    "prps": "Get PRPS price in $ and ETH",
-    "dubi": "Get DUBI price in $ and ETH",
-    "eth": "Get ETH price in $",
-    "buy": "Where to get PRPS and DUBI",
-    "contract": "Get the token addresses for Purpose and for DUBI",
-    "website": "Get a link to PRPS.io",
-    "support": "Get the support mail",
-    "faq": "Get the PRPS FAQ",
-    "reddit": "Get a link to the PRPS subreddit",
-    "whitepaper": "Get a link to the whitepaper",
-    "code": "Get the code on GitHub",
-    "scan": "Gives links to track PRPS & DUBI transactions",
-    "stream": "Check if Athene is live or not",
-    "help": "Get a list of all the commands (again?!)"
+    "!warning [username]":"Warns a specific user",
+    "!warn [username]":"Same as \"!warning\"",
+    "!removeWarning [username]":"Remove the warning for a specific user",
+    "!masters":"Get a list of my masters",
+    "!removeAllWarnings":"<!>DANGER ZONE<!>Remove ALL warnings.",
+    "!reset":"Reset all of my settings to default"
 }
