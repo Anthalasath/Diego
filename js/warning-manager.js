@@ -3,13 +3,9 @@ const settingsFile = './config/settings.json';
 const settingsDefaultFile = './config/settings-default.json';
 const botdata = './config/botdata.json';
 
-class WarningManager {
+function warningManager(bot) {
 
-    constructor(bot) {
-        this.bot = bot;
-    }
-
-    warnUser(message, user) {
+    this.warnUser = function(message, user) {
         const warnings = message.guild.channels.find('name', 'warnings');
         const general = message.guild.channels.find('name', 'general');
         const warnedTime = new Date();
@@ -36,7 +32,7 @@ class WarningManager {
     }
     
     // Allows a user to check its own warnings
-    checkUserWarnings(message) {
+    this.checkUserWarnings = function(message) {
         const userID = message.author.id;
         const data = jsonfile.readFileSync(botdata);
         const warnedUsers = data.warned;
@@ -55,8 +51,8 @@ class WarningManager {
     }
     
     // Only 2 parameters are required for this function to work properly
-    removeWarning(index, user, message) {
-        const warnings = this.bot.channels.find(val => val.name === 'warnings');
+    this.removeWarning = function(index, user, message) {
+        const warnings = bot.channels.find(val => val.name === 'warnings');
     
         let data = jsonfile.readFileSync(botdata);
         let warned = data.warned;
@@ -103,7 +99,7 @@ class WarningManager {
         if (message) {
             initiator = message.author;
         } else {
-            initiator = this.bot.user
+            initiator = bot.user
         }
         logData = {
             "initiator": {
@@ -152,14 +148,15 @@ class WarningManager {
             channel = message.channel;
             channel.send(`<@${ userID }> , your warning has been removed and your crimes expiated. CryptoJesus has forgiven your sins... for now.`)
         } else {
-            channel = this.bot.channels.find('name', 'general');
+            channel = bot.channels.find('name', 'general');
             channel.send(`<@${ userID }> , your warning has been removed and your crimes expiated. CryptoJesus has forgiven your sins... for now.`);
         }
     }
-    
-    removeAllWarnings(initiator) {
-        const warnings = this.bot.channels.find(val => val.name === 'warnings');
-        const general = this.bot.channels.find(val => val.name === 'general');
+
+
+    this.removeAllWarnings = function(initiator) {
+        const warnings = bot.channels.find(val => val.name === 'warnings');
+        const general = bot.channels.find(val => val.name === 'general');
     
         let data = jsonfile.readFileSync(botdata);
         let warned = data.warned;
@@ -191,24 +188,21 @@ class WarningManager {
         })
     
         warnings.fetchMessages({limit: 100})
-            .then(messages => {
-                    let messagesArr = messages.array();
-                    let messageCount = messagesArr.length;
-    
-                    for (let i = 0; i < messageCount; i++) {
-                        messagesArr[i].delete();
-    
-                        if (i === messageCount -1) {
-                            general.send('All warnings have been removed.');
-                        }
-                    }
-            }).catch(err => {
-                console.log(err);
-            });
+        .then(messages => {
+            let messagesArr = messages.array();
+            let messageCount = messagesArr.length;
+
+            for (let i = 0; i < messageCount; i++) {
+                messagesArr[i].delete();
+
+                if (i === messageCount -1) {
+                    general.send('All warnings have been removed.');
+                }
+            }
+        }).catch(err => {
+            console.log(err);
+        });
     }
-    
 }
 
-module.exports = {
-    WarningManager: WarningManager
-}
+module.exports = warningManager;

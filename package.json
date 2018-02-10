@@ -16,6 +16,8 @@
   "license": "MIT",
   "dependencies": {
     "discord.js": "^11.3.0",
-    "jsonfile": "^4.0.0"
+    "jsonfile": "^4.0.0",
+    "node-coinmarketcap": "^0.2.0",
+    "request": "^2.83.0"
   }
 }

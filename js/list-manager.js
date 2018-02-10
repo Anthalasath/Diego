@@ -3,13 +3,9 @@ const settingsFile = './config/settings.json';
 const settingsDefaultFile = './config/settings-default.json';
 const botdata = './config/botdata.json';
 
-class ListManager {
+function listManager(bot) {
 
-    constructor(bot) {
-        this.bot = bot;
-    }
-
-    punishTheTroll(message) {
+    this.punishTheTroll = function(message) {
         let data = jsonfile.readFileSync(botdata);
         let trolls = data.trolls;
         let warned = data.warned;
@@ -18,6 +14,7 @@ class ListManager {
         let isAlreadyATroll;
         let isAlreadyWarned;
         let indexOnTrollList;
+        let diegoLULEmoji = bot.emojis.find('name', 'diegoLUL');
     
         for (let i = 0; i < trolls.length; i++) {
             if (trolls[i].id === userID) {
@@ -42,14 +39,14 @@ class ListManager {
         if (isAlreadyATroll && isAlreadyWarned) {
             const members = message.guild.members;
             const userToKick = members.find('id', userID);
-            const me = members.find('id', this.bot.user.id);
+            const me = members.find('id', bot.user.id);
     
             if (me.hasPermission(0x00000002)) {
                 userToKick.kick('I told you to not abuse my warning powers...');
-                message.reply('Enough of this... goodbye *kick* :diegoLUL:');
+                message.reply(`Enough of this... goodbye *kick* ${ diegoLULEmoji }`);
                 
             }
-            // Even without permissions, the this.bot will tag the user
+            // Even without permissions, the bot will tag the user
             // as "kicked", because it uses this tag to ignore users.
             trolls[indexOnTrollList].wasKicked = true;
     
@@ -64,7 +61,7 @@ class ListManager {
                 message.reply('Be carefull, you\'ve already been warned...');
                 
             } else {
-                message.reply('What are you trying to do, brah ? Wanna get a warning ? :diegoLUL:');
+                message.reply(`What are you trying to do, brah ? Wanna get a warning ? ${ diegoLULEmoji }`);
             }
         }
     
@@ -74,8 +71,8 @@ class ListManager {
             if (err) { console.log(err); }
         })
     }
-    
-    clearTrollList() {
+
+    this.clearTrollList = function() {
         let data = jsonfile.readFileSync(botdata);
         let trolls = data.trolls;
     
@@ -87,42 +84,8 @@ class ListManager {
         })
     }
     
-    clearSpamList() {
-        let data = jsonfile.readFileSync(botdata);
-        let spams = data.spams;
-    
-        spams = [];
-    
-        data.spams = spams;
-        jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
-        });
-    }
-    
-    addUserToSpamList(userID) {
-        let data = jsonfile.readFileSync(botdata);
-        let spams = data.spams;
-        let spamData;
-    
-        for (let i = 0; i < spams.length; i++) {
-            const spammer = spams[i];
-            if (spammer.id === userID) {
-                return false;
-            }
-        }
-        spamData = { "id": userID, "time": Date.now() };
-        spams.push(spamData);
-    
-        data.spams = spams;
-        jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
-        });
-    
-        return true;
-    }
-    
     // Removes users if the timer has passed
-    removeUserFromList(listName, timer, removalFunc) {
+    this.removeUserFromList = function(listName, timer, removalFunc) {
         let data = jsonfile.readFileSync(botdata);
         let list;
         let indexesToRemove = [];
@@ -156,9 +119,7 @@ class ListManager {
             if (err) { console.log(err); }
         });
     }
-    
 }
 
-module.exports = {
-    ListManager: ListManager
-}
+
+module.exports = listManager;

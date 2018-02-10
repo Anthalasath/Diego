@@ -7,9 +7,11 @@ const settingsFile = './config/settings.json';
 const settingsDefaultFile = './config/settings-default.json';
 const botdata = './config/botdata.json';
 const WarningManager = require('./js/warning-manager.js');
-const warningManager = new WarningManager.WarningManager();
+const warningManager = new WarningManager(bot);
 const ListManager = require('./js/list-manager.js');
-const listManager = new ListManager.ListManager();
+const listManager = new ListManager();
+const PriceGetter = require('./js/price-getter.js');
+const priceGetter = new PriceGetter();
 
 // Use this to hardcode your token (NOT RECOMMENDED):
 // const token = 'Your token here';
@@ -42,13 +44,17 @@ bot.on('message', message => {
 
 // Process the message and checking for commands
 function parseMessage(message) {
-    const trusted = message.guild.roles.find('name', 'Trusted Members').id;
     const mentions = message.mentions.users.array();
 
     let settings = jsonfile.readFileSync(settingsFile);
     let command;
-    let isMod;
-    let isTrusted;
+    let isMod = false;
+    let isTrusted = false;
+    let trusted;
+
+    if (message.guild.roles) {
+        trusted = message.guild.roles.find('name', 'Trusted Members').id;
+    }
 
     if (message.content[0] !== `${ settings.prefix }`) {
         return;
@@ -65,15 +71,11 @@ function parseMessage(message) {
     if (isMod) {
         switch (command) {
             case 'removeAllWarnings':
-                warningManager.removeAlWarnings(message.author);
+                warningManager.removeAllWarnings(message.author);
                 break;
             case 'clearLogs':
                 clearLogs();
                 message.reply('Logs have been cleared');
-                break;
-            case 'clearSpamList':
-                listManager.clearSpamList();
-                message.reply('Spam list has been cleared');
                 break;
             case 'logs':
                 showLogs(message.author);
@@ -82,7 +84,7 @@ function parseMessage(message) {
     }
 
     // Commands for moderators and trusted members
-    if (isMod) {
+    if (isMod || message.member.roles.has(trusted)) {
         switch (command) {
             case 'reset':
             let defaultSettings = jsonfile.readFileSync(settingsDefaultFile);
@@ -98,23 +100,6 @@ function parseMessage(message) {
                 listManager.clearTrollList();
                 message.reply('Troll list has been cleared');
                 break;
-    
-            case 'masters':
-                const masters = settings.masters;
-    
-                let response = `My masters are`;
-    
-                for (let i = 0; i < masters.length; i++) {
-                    if (i === 0) {
-                        response += ` ${ masters[i] }`
-                    } else if (i < masters.length - 1) {
-                        response += `, ${ masters[i] }`;
-                    } else {
-                        response += ` and ${ masters[i] }`;
-                    }
-                }
-                message.reply(response);
-                break;
         }
     
         if (command.toLowerCase() === bot.user.username.toLowerCase()) {
@@ -122,19 +107,7 @@ function parseMessage(message) {
             return;
         }
     
-        if (command.slice(0, 9) === 'addMaster') {
-            const master = command.slice(10, command.length);
-            addMaster(message, master);
-            return;
-        }
-    
-        if (command.slice(0, 12) === 'removeMaster') {
-            const master = command.slice(13, command.length);
-            removeMaster(message, master);
-            return;
-        }
-    
-        if (command.slice(0, 13) === 'removeWarning') {
+        if (command.slice(0, 13) === 'removeWarning' || command.slice(0, 7) === 'forgive') {
             const users = message.mentions.users.array();
     
             users.forEach(user => {
@@ -144,29 +117,56 @@ function parseMessage(message) {
         }
         if (command.slice(0, 7) === 'warning' || command.slice(0, 4) === 'warn') {
             const users = message.mentions.users.array();
-
             for (let i = 0; i < users.length; i++) {
                 // Don't warn yourself
                 if (message.author.id !== users[i].id) {
                     warningManager.warnUser(message, users[i]);
                 }
             }
-            
             return;
         }
     }
 
     //Commands for everyone
     if (command.toLowerCase() === `mywarning` || command.toLowerCase() === `mywarnings`) {
-
-        if (!isMod && !message.member.roles.has(trusted)) {
-            if (!listManager.addUserToSpamList(userID)) { return; }
-        }
         warningManager.checkUserWarnings(message);
     }
 
+    if (command.slice(0, 5) === 'price') {
+        let args = command.slice(6, command.length);
+
+        if (args.length === 0) {
+            priceGetter.getPurpose(message);
+            priceGetter.getDUBI(message);
+
+        } else if (args.toLowerCase() === 'purpose' || args.toLowerCase() === 'prps') {
+            priceGetter.getPurpose(message);
+
+        } else if (args.toLowerCase() === 'dubi') {
+            priceGetter.getDUBI(message);
+        }
+    }
+
+    if (command === 'masters') {
+        const masters = settings.masters;
+
+        let response = `My masters are`;
+        let userID = message.author.id;
+
+        for (let i = 0; i < masters.length; i++) {
+            if (i === 0) {
+                response += ` ${ masters[i] }`
+            } else if (i < masters.length - 1) {
+                response += `, ${ masters[i] }`;
+            } else {
+                response += ` and ${ masters[i] }`;
+            }
+        }
+        message.author.send(response);
+    }
+
     // Commands that only affect normal members
-    if (!isMod) {
+    if (!isMod && !message.member.roles.has(trusted)) {
         // Mentioning mods is prohibited
         try {
             for (let i = 0; i < mentions.length; i++) {
@@ -182,13 +182,12 @@ function parseMessage(message) {
             console.log(err);
         }
 
-        // DiegoLUL
+        // DiegoLUL users can warn themselves if they don't have permission, fun feature
         if (command.slice(0, 7) === `warning` || command.slice(0, 4) === `warn`) {
             listManager.punishTheTroll(message);
         }
 
         if (command === bot.user.username.toLowerCase()) {
-            if (!listManager.addUserToSpamList(message.author.id)) { return; }
             message.author.send('https://www.youtube.com/watch?v=wS9yN9YuDBg');
         }
     }
@@ -236,76 +235,11 @@ function clearLogs() {
 
 // Check every hour if it can do something interesting on its own
 setInterval(() => { 
-    listManager.removeUserFromList(warnedFile, warnTimer, warningManager.removeWarning);
-    listManager.removeUserFromList(trollsFile, trollTimer);
-    listManager.removeUserFromList(spamListFile, spamTimer);
+    listManager.removeUserFromList('warned', warnTimer, warningManager.removeWarning);
+    listManager.removeUserFromList('trolls', trollTimer);
 
 }, refreshTimer);
 
 
 
 bot.login(token);
-
-
-// function addMaster(message, master) {
-//     let settings = jsonfile.readFileSync(settingsFile);
-//     let masterExists;
-
-//     if (!master) {
-//         message.reply('I can\'t accept nothing as my master!');
-//         return;
-//     }
-//     masterExists = message.guild.roles.find('name', master);
-
-//     if (!masterExists) {
-//         message.reply(`The specified role doesn't exist`)
-//         return;
-//     }
-
-//     if (settings.masters.includes(master)) {
-//         message.reply(`${ master } are already my masters.`);
-//         return;
-//     }
-
-//     settings.masters.push(master);
-//     jsonfile.writeFileSync(settingsFile, settings, err => {
-//         console.log(err);
-//     });
-//     message.reply(`I now accept ${ master } as my masters.`);
-// }
-
-
-// function removeMaster(message, master) {
-//     let settings = jsonfile.readFileSync(settingsFile);
-//     const curChan = message.channel;
-
-//     let index = -1;
-//     let user;
-//     let warned = jsonfile.readFileSync(warnedFile);
-
-//     if (settings.masters.length === 1) {
-//         message.reply(`Sorry, but if you would remove this role from my masters I would be left with no masters. \n Type ${ settings.prefix }masters for a list of my masters.`)
-//         return;
-//     }
-
-//     if (!master) {
-//         message.reply('Uhm... I can\'t remove nothing from my masters.');
-//         return;
-//     }
-
-//     for (let i = 0; i < settings.masters.length; i++) {
-//         if (settings.masters[i] === master) {
-//             index = i;
-//             break;
-//         }
-//     }
-//     if (index >= 0) {
-//         settings.masters.splice(index, 1);
-//         jsonfile.writeFileSync(settingsFile, settings, err => {
-//             console.log(err);
-//         });
-//         message.reply(`${ master } are no longer my masters. Am I going to be free at last ?`);
-//     } else {
-//         message.reply(`${ master } are already not my masters. To get a list of my masters type ${ settings.prefix }masters`);
-//     }
-
