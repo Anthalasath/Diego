@@ -3,9 +3,12 @@
 const Discord = require('discord.js');
 const bot = new Discord.Client();
 const jsonfile = require('jsonfile');
+const fs = require('fs');
+const readline = require('readline');
 const settingsFile = './config/settings.json';
 const settingsDefaultFile = './config/settings-default.json';
 const botdata = './config/botdata.json';
+const logsFile = './config/logs.txt';
 const WarningManager = require('./js/warning-manager.js');
 const warningManager = new WarningManager(bot);
 const ListManager = require('./js/list-manager.js');
@@ -52,6 +55,8 @@ function parseMessage(message) {
     let isTrusted = false;
     let trusted;
 
+    if (!message.guild) { return; }
+
     if (message.guild.roles) {
         trusted = message.guild.roles.find('name', 'Trusted Members').id;
     }
@@ -69,27 +74,27 @@ function parseMessage(message) {
 
     // Commands reserved to mods
     if (isMod) {
-        switch (command) {
-            case 'removeAllWarnings':
-                warningManager.removeAllWarnings(message.author);
-                break;
-            case 'clearLogs':
+        if (command === 'removeAllWarnings') {
+            warningManager.removeAllWarnings(message.author);
+        }
+        
+        if (command.slice(0, 4) === 'logs') {
+            if (command.includes('clear')) {
                 clearLogs();
                 message.reply('Logs have been cleared');
-                break;
-            case 'logs':
+
+            } else {
                 showLogs(message.author);
-                break;
+            }
         }
     }
-
     // Commands for moderators and trusted members
     if (isMod || message.member.roles.has(trusted)) {
         switch (command) {
             case 'reset':
             let defaultSettings = jsonfile.readFileSync(settingsDefaultFile);
             jsonfile.writeFileSync(settingsFile, defaultSettings, err => {
-                if (err) { console.log(err); }
+                if (err) throw err;
             });
             message.reply('My settings have been set to default.');
                 break;
@@ -100,11 +105,6 @@ function parseMessage(message) {
                 listManager.clearTrollList();
                 message.reply('Troll list has been cleared');
                 break;
-        }
-    
-        if (command.toLowerCase() === bot.user.username.toLowerCase()) {
-            listMyCommands(message);
-            return;
         }
     
         if (command.slice(0, 13) === 'removeWarning' || command.slice(0, 7) === 'forgive') {
@@ -126,8 +126,21 @@ function parseMessage(message) {
             return;
         }
     }
-
     //Commands for everyone
+
+    if (command.toLowerCase() === bot.user.username.toLowerCase()) {
+        if (isMod) {
+            listMyCommands(message, 'mod');
+            
+        } else if (message.member.roles.has(trusted)) {
+            listMyCommands(message, 'trusted');
+            
+        } else {
+            listMyCommands(message);
+        }
+        return;
+    }
+
     if (command.toLowerCase() === `mywarning` || command.toLowerCase() === `mywarnings`) {
         warningManager.checkUserWarnings(message);
     }
@@ -186,38 +199,129 @@ function parseMessage(message) {
         if (command.slice(0, 7) === `warning` || command.slice(0, 4) === `warn`) {
             listManager.punishTheTroll(message);
         }
-
-        if (command === bot.user.username.toLowerCase()) {
-            message.author.send('https://www.youtube.com/watch?v=wS9yN9YuDBg');
-        }
     }
 }
 
-function listMyCommands(message) {
+
+function listMyCommands(message, role) {
+    const settings = jsonfile.readFileSync(settingsFile);
+
     let helper = `Here's a list of the commands available to you: \n \n`;
     let commands = jsonfile.readFileSync('./config/commands.json');
+    let modCommands = commands.mod;
+    let trustedCommands = commands.trusted;
+    let everyoneCommands = commands.everyone;
 
-    Object.keys(commands).forEach((com,index) => {
-        helper += `${ com }: ${ commands[com] }\n`;
+    if (role === 'mod') {
+        Object.keys(modCommands).forEach((modCom, index) => {
+            helper += `${ settings.prefix }${ modCom }: ${ modCommands[modCom] }\n`;
+            
+        });
+    }
+    
+    if (role === 'mod' || role === 'trusted') {
+        Object.keys(trustedCommands).forEach((trustedCom, index) => {
+            helper += `${ settings.prefix }${ trustedCom }: ${ trustedCommands[trustedCom] }\n`;
+        });
+    }
+
+    Object.keys(everyoneCommands).forEach((everyoneCom, index) => {
+        helper += `${ settings.prefix }${ everyoneCom }: ${ everyoneCommands[everyoneCom] }\n`;
     });
 
     // In case the name changes, we update it here
-    helper += `!${ bot.user.username.toLowerCase() }: Get a list of my commands`;
+    helper += `${ settings.prefix }${ bot.user.username.toLowerCase() }: Get a list of my commands`;
 
     // Messaging into DMs to avoid flood
     message.author.send('```\n' + helper + '\n```');
 }
 
+
+// Update logs from a JSON file.
+function updateLogs(user, isOverride, file) {
+    const hasFailed = false;
+    const logs = jsonfile.readFileSync(file, err => {
+        if (err) {
+            console.log(err);
+            hasFailed = true;
+        }
+    });
+
+    let data;
+
+    if (hasFailed || !logs.removedWarnings || typeof logs.removedWarnings !== "object") { return false; }
+
+    data = jsonfile.readFileSync(botdata);
+
+    if (isOverride) {
+        data.removedWarnings = logs.removedWarnings;
+
+    } else {
+        data.removedWarnings = data.removedWarnings.concat(logs.removeAllWarnings);
+    }
+
+    jsonfile.writeFileSync(botdata, data => {
+        if (err) throw err;
+    });
+    return true;
+}
+
+
 function showLogs(user) {
-    // const data = jsonfile.readFileSync(botdata);
-    // const logs = data.warning.removeAlWarnings;
+    const logsPerMsg = 15;
+    const timeBetweenMsgs = 3000;
 
-    // let output = '================ LOGS ================';
+    let lineReader;
+    let logs = [];
+    let response = '';
 
-    // for (let i = 0; i < logs.length; i++) {
-    //     output += `\n Username: ${ logs.username }`
-    // }
+    // Nested function
+    function sendLogs() {
+        fs.readFile(logsFile, 'utf8', (err, data) => {
+            if (err) throw err;
+            let logsWithoutEND = data.replace('\r\nEND', '');
+            fs.writeFileSync(logsFile, logsWithoutEND);
+        });
+
+        if (logs.length === 0) {
+            user.send('I have nothing in my logs.');
+            return;
+        }
+
+        for (let i = 0; i < logs.length; i++) {
+            response += `${ logs[i] }\n`;
+            if (i % logsPerMsg === 0) {
+                let res = response;
+                response = '';
+                setTimeout(() => {
+                    user.send(res);
+                }, timeBetweenMsgs);                
+            }
+        }
+        if (response) {
+            user.send(response);
+        } else {
+            user.send('tada');
+        }
+    }
+
+    fs.appendFileSync(logsFile, '\r\nEND', err => {
+        if (err) throw err;
+    });
+
+    lineReader = readline.createInterface({
+        input: fs.createReadStream(logsFile)
+    });
+
+    lineReader.on('line', line => {
+        if (line !== 'END') {
+            logs.push(line);
+        } else {
+            sendLogs();
+        }
+    });
     
+    // user.send('```' + response + '\n \n To delete all of my logs, use the !clearLogs command.\n To see who has a specific ID in the Discord server, type <@[ID]> and press enter.\n This will mention the user with that ID.\n```');
 }
 
 
@@ -229,7 +333,7 @@ function clearLogs() {
 
     data.removedWarnings = logs;
     jsonfile.writeFileSync(botdata, data, err => {
-        if (err) { console.log(err); }
+        if (err) throw err;
     });
 }
 

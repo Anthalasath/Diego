@@ -1,8 +1,20 @@
 {
-    "!warning [username]":"Warns a specific user",
-    "!warn [username]":"Same as \"!warning\"",
-    "!removeWarning [username]":"Remove the warning for a specific user",
-    "!masters":"Get a list of my masters",
-    "!removeAllWarnings":"<!>DANGER ZONE<!>Remove ALL warnings.",
-    "!reset":"Reset all of my settings to default"
+    "everyone": {
+        "price":"See the price of PRPS and DUBI on CoinMarketCap.",
+        "mywarnings": "See if you got any warnings",
+        "masters":"Get a list of my masters"
+    },
+    "trusted": {
+        "warning [username]":"Warns a specific user",
+        "warn [username]":"Same as \"!warning\"",
+        "removeWarning [username]":"Remove the warning for a specific user",
+        "forgive": "Same as removeWarning"
+    },
+    "mod": {
+        "removeAllWarnings":"<!>DANGER ZONE<!>Remove ALL warnings.",
+        "clearTrollList":"Remove all trolls from my troll list. I use this list for people who use the warnings commands without authorization LUL",
+        "reset":"Reset all of my settings to default",
+        "logs":"Show you my logs",
+        "clearLogs":"Clear my logs"
+    }
 }

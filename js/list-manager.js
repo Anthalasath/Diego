@@ -68,7 +68,7 @@ function listManager(bot) {
         data.trolls = trolls;
         data.warned = warned;
         jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
+            if (err) throw err;
         })
     }
 
@@ -80,7 +80,7 @@ function listManager(bot) {
     
         data.trolls = trolls;
         jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
+            if (err) throw err;
         })
     }
     
@@ -116,7 +116,7 @@ function listManager(bot) {
     
         data.listName = list;
         jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
+            if (err) throw err;
         });
     }
 }

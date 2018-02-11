@@ -1,7 +1,9 @@
+const fs = require('fs');
 const jsonfile = require('jsonfile');
 const settingsFile = './config/settings.json';
 const settingsDefaultFile = './config/settings-default.json';
 const botdata = './config/botdata.json';
+const logsFile = './config/logs.txt'
 
 function warningManager(bot) {
 
@@ -27,7 +29,7 @@ function warningManager(bot) {
     
         data.warned = warned;
         jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
+            if (err) throw err;
         })
     }
     
@@ -56,7 +58,6 @@ function warningManager(bot) {
     
         let data = jsonfile.readFileSync(botdata);
         let warned = data.warned;
-        let removedWarnings = data.removedWarnings;
         let initiator;
         let logData;
         let userID;
@@ -94,25 +95,18 @@ function warningManager(bot) {
                 }
             }
         }
-        
         // Adding logs to keep track of who removed the warning and for who, and when
         if (message) {
             initiator = message.author;
         } else {
             initiator = bot.user
         }
-        logData = {
-            "initiator": {
-                "username": initiator.username,
-                "id": initiator.id
-            },
-            "target": {
-                "username": username,
-                "id": userID
-            },
-            "time": new Date()
-        };
-        removedWarnings.push(logData);
+
+        logData = `${ new Date() }: ${ initiator.username } ( ID: ${ initiator.id } ) has removed the warning of ${ username } ( ID: ${ userID } ).\r\n`
+
+        fs.appendFile(logsFile, logData, err => {
+            if (err) throw err;
+        })
     
         //Removing the user from the list on the channel
         warnings.fetchMessages({limit: 100})
@@ -123,7 +117,6 @@ function warningManager(bot) {
                 for (let i = 0; i < messageCount; i++) {
                     let msg = messagesArr[i];
                     let content = msg.content;
-                    // let userToRemove = content.search(`:warning: ${ username }`);
                     let userToRemove = msg.mentions.users.find(val => val.id === userID);
                     if (userToRemove) {
                         msg.delete();
@@ -131,15 +124,14 @@ function warningManager(bot) {
                     }
                 }
             }).catch(err => {
-                console.log(err);
+                throw err;
             });
     
         warned.splice(index, 1); // removes the user from the list
     
         data.warned = warned;
-        data.removedWarnings = removedWarnings;
         jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
+            if (err) throw err;
         })
     
         // Responding in the appropriate channel
@@ -160,31 +152,20 @@ function warningManager(bot) {
     
         let data = jsonfile.readFileSync(botdata);
         let warned = data.warned;
-        let logs = data.removedWarnings;
-        let logData;
+        let logData = `${ new Date() }: ${ initiator.username } ( ID: ${ initiator.id } ) has removed all warnings.\r\n`;
     
         if (warned.length === 0) {
             general.send('There are no warnings to remove.');
         }
-        logData = {
-            "initiator": {
-                "username": initiator.username,
-                "id": initiator.id
-            },
-            "target": {
-                "username": "all",
-                "id": "all"
-            },
-            "time": new Date()
-        };
-        logs.push(logData);
         
         warned = [];
-    
         data.warned = warned;
-        data.removedWarnings = logs;
         jsonfile.writeFileSync(botdata, data, err => {
-            if (err) { console.log(err); }
+            if (err) throw err;
+        })
+
+        fs.appendFile(logsFile, logData, err => {
+            if (err) throw err;
         })
     
         warnings.fetchMessages({limit: 100})
