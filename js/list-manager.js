@@ -1,14 +1,16 @@
+'use strict';
+
 const jsonfile = require('jsonfile');
 const settingsFile = './config/settings.json';
 const settingsDefaultFile = './config/settings-default.json';
-const botdata = './config/botdata.json';
+const trollsFile = './data/trolls.json';
+const warningsFile = './data/warnings.json';
 
 function listManager(bot) {
 
     this.punishTheTroll = function(message) {
-        let data = jsonfile.readFileSync(botdata);
-        let trolls = data.trolls;
-        let warned = data.warned;
+        let trolls = jsonfile.readFileSync(trollsFile);
+        let warnings = jsonfile.readFileSync(warningsFile);
         let userID = message.author.id;
         let username = message.author.username;
         let isAlreadyATroll;
@@ -28,8 +30,8 @@ function listManager(bot) {
             }
         }
     
-        for (let i = 0; i < warned.length; i++) {
-            if (warned[i].id === userID) {
+        for (let i = 0; i < warnings.length; i++) {
+            if (warnings[i].id === userID) {
                 isAlreadyWarned = true;
                 indexOnTrollList = i;
                 break;
@@ -64,60 +66,39 @@ function listManager(bot) {
                 message.reply(`What are you trying to do, brah ? Wanna get a warning ? ${ diegoLULEmoji }`);
             }
         }
+
+        jsonfile.writeFileSync(trollsFile, trolls, err => {
+            if (err) throw err;
+        });
+        jsonfile.writeFileSync(warningsFile, warnings, err => {
+            if (err) throw err;
+        });
+    }
+
+    this.clearTrollList = function() {
+        let trolls = jsonfile.readFileSync(trollsFile);
     
-        data.trolls = trolls;
-        data.warned = warned;
-        jsonfile.writeFileSync(botdata, data, err => {
+        trolls = [];
+    
+        jsonfile.writeFileSync(trollsFile, trolls, err => {
             if (err) throw err;
         })
     }
 
-    this.clearTrollList = function() {
-        let data = jsonfile.readFileSync(botdata);
-        let trolls = data.trolls;
-    
-        trolls = [];
-    
-        data.trolls = trolls;
-        jsonfile.writeFileSync(botdata, data, err => {
-            if (err) throw err;
-        })
-    }
-    
-    // Removes users if the timer has passed
-    this.removeUserFromList = function(listName, timer, removalFunc) {
-        let data = jsonfile.readFileSync(botdata);
-        let list;
-        let indexesToRemove = [];
-    
-        if (!data.listName) {
-            return; 
-        }
-    
-        list = data.listName;
+    this.removeUsersWithExpiredTimers = function(list, timer) {
+        let usersToRemoveByIndex = [];
     
         for (let i = 0; i < list.length; i++) {
-            const hasTimerPassed = (Date.now() - list[i].time) >= timer ? true : false;
-    
-            if (hasTimerPassed) {
-                if (removalFunc) {
-                    removalFunc(i);
-                } else {
-                    indexesToRemove.push(i);
-                }
+            let hasTimerExpired = Date.now() - list[i].time >= timer ? true : false;
+            if (hasTimerExpired) {
+                usersToRemoveByIndex.push(i);
             }
         }
     
-        if (indexesToRemove.length === 0) { return; }
-    
-        for (let index in indexesToRemove) {
-            list.splice(index, 1);
+        for (let i = 0; i < usersToRemoveByIndex.length; i++) {
+            list.splice(usersToRemoveByIndex[i], 1);
         }
-    
-        data.listName = list;
-        jsonfile.writeFileSync(botdata, data, err => {
-            if (err) throw err;
-        });
+        return list;
     }
 }
 

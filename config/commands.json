@@ -2,7 +2,8 @@
     "everyone": {
         "price":"See the price of PRPS and DUBI on CoinMarketCap.",
         "mywarnings": "See if you got any warnings",
-        "masters":"Get a list of my masters"
+        "masters":"Get a list of my masters",
+        "prefs [pref=[pref you want]]":"Change your preferences, such as your timezone."
     },
     "trusted": {
         "warning [username]":"Warns a specific user",
@@ -14,7 +15,7 @@
         "removeAllWarnings":"<!>DANGER ZONE<!>Remove ALL warnings.",
         "clearTrollList":"Remove all trolls from my troll list. I use this list for people who use the warnings commands without authorization LUL",
         "reset":"Reset all of my settings to default",
-        "logs":"Show you my logs",
-        "clearLogs":"Clear my logs"
+        "logs":"Sends a textfile with my logs",
+        "logs clear":"Clear my logs"
     }
 }

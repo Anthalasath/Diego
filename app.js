@@ -2,19 +2,25 @@
 
 const Discord = require('discord.js');
 const bot = new Discord.Client();
+const WarningsManager = require('./js/warnings-manager.js');
+const warningsManager = new WarningsManager(bot);
+const ListManager = require('./js/list-manager.js');
+const listManager = new ListManager(bot);
+const PriceGetter = require('./js/price-getter.js');
+const priceGetter = new PriceGetter();
+const PreferencesManager = require('./js/preferences-manager.js');
+const preferencesManager = new PreferencesManager();
+const LogsManager = require('./js/logs-manager.js');
+const logsManager = new LogsManager();
 const jsonfile = require('jsonfile');
 const fs = require('fs');
 const readline = require('readline');
 const settingsFile = './config/settings.json';
 const settingsDefaultFile = './config/settings-default.json';
-const botdata = './config/botdata.json';
-const logsFile = './config/logs.txt';
-const WarningManager = require('./js/warning-manager.js');
-const warningManager = new WarningManager(bot);
-const ListManager = require('./js/list-manager.js');
-const listManager = new ListManager();
-const PriceGetter = require('./js/price-getter.js');
-const priceGetter = new PriceGetter();
+const logsFile = './data/logs.txt';
+const warningsFile = './data/warnings.json';
+const trollsFile = './data/trolls.json';
+const refreshTimer = jsonfile.readFileSync(settingsFile).refreshTimer;
 
 // Use this to hardcode your token (NOT RECOMMENDED):
 // const token = 'Your token here';
@@ -25,10 +31,6 @@ const priceGetter = new PriceGetter();
 // Use this if you're using a custom JSON file to store your token:
 const token = jsonfile.readFileSync('./config/token.json').token;
 
-let refreshTimer = jsonfile.readFileSync(settingsFile).refreshTimer;
-let warnTimer = jsonfile.readFileSync(settingsFile).warnTimer;
-let trollTimer = jsonfile.readFileSync(settingsFile).trollTimer;
-let spamTimer = jsonfile.readFileSync(settingsFile).spamTimer;
 
 bot.on('disconnect', () => {
     bot.login(token);
@@ -75,16 +77,35 @@ function parseMessage(message) {
     // Commands reserved to mods
     if (isMod) {
         if (command === 'removeAllWarnings') {
-            warningManager.removeAllWarnings(message.author);
+            warningsManager.removeAllWarnings(message.author);
+            return;
+        }
+
+        if (command === 'getWarnings') {
+            warningsManager.getWarnings(message.author);
+            return;
+        }
+
+        if (command === 'getPrefs') {
+            preferencesManager.getPrefsFile(message.author);
+            return;
         }
         
         if (command.slice(0, 4) === 'logs') {
             if (command.includes('clear')) {
-                clearLogs();
-                message.reply('Logs have been cleared');
+                logsManager.clearLogs();
+                message.reply('My logs have been cleared');
 
+            // } else if (command.includes('update')) {
+            //     let file = message.attachments.find('filename', 'logs.txt');
+            //     if (file) {
+            //         updateLogs(file.url);
+            //         message.reply('My logs have been updated.');
+            //     } else {
+            //         message.reply('I can\'t update my logs because you don\'t have any logs.txt file attached to your message.');
+            //     }
             } else {
-                showLogs(message.author);
+                logsManager.getLogs(message.author);
             }
         }
     }
@@ -109,9 +130,9 @@ function parseMessage(message) {
     
         if (command.slice(0, 13) === 'removeWarning' || command.slice(0, 7) === 'forgive') {
             const users = message.mentions.users.array();
-    
+            
             users.forEach(user => {
-                warningManager.removeWarning(null, user, message);
+                warningsManager.removeWarning(null, user, message);
             });
             return;
         }
@@ -120,14 +141,13 @@ function parseMessage(message) {
             for (let i = 0; i < users.length; i++) {
                 // Don't warn yourself
                 if (message.author.id !== users[i].id) {
-                    warningManager.warnUser(message, users[i]);
+                    warningsManager.warnUser(message, users[i]);
                 }
             }
             return;
         }
     }
     //Commands for everyone
-
     if (command.toLowerCase() === bot.user.username.toLowerCase()) {
         if (isMod) {
             listMyCommands(message, 'mod');
@@ -141,8 +161,21 @@ function parseMessage(message) {
         return;
     }
 
+    if (command.slice(0, 7) === 'convert') {
+        let amount = command.slice(8, command.length);
+
+        priceGetter.convertEthToUSD(message.author, amount);
+    }
+
+    if (command.slice(0, 5) === 'prefs') {
+        if (command.slice(6, 15) === 'timezone=') {
+            let timezone = command.slice(15, command.length);
+            preferencesManager.updateTimezone(message.author, timezone);
+        }
+    }
+
     if (command.toLowerCase() === `mywarning` || command.toLowerCase() === `mywarnings`) {
-        warningManager.checkUserWarnings(message);
+        warningsManager.checkUserWarnings(message);
     }
 
     if (command.slice(0, 5) === 'price') {
@@ -155,7 +188,7 @@ function parseMessage(message) {
         } else if (args.toLowerCase() === 'purpose' || args.toLowerCase() === 'prps') {
             priceGetter.getPurpose(message);
 
-        } else if (args.toLowerCase() === 'dubi') {
+        } else if (args.toLowerCase() === 'dubi' || args.toLowerCase() === 'decentralized universal basic income') {
             priceGetter.getDUBI(message);
         }
     }
@@ -187,7 +220,7 @@ function parseMessage(message) {
                 const mentionnedUserGuild = message.guild.members.find('id', mentionnedUserID);
         
                 if (mentionnedUserGuild.roles.find('name', 'Moderator')) {
-                    warningManager.warnUser(message, message.author);
+                    warningsManager.warnUser(message, message.author);
                 }
             }
         }
@@ -237,110 +270,21 @@ function listMyCommands(message, role) {
 }
 
 
-// Update logs from a JSON file.
-function updateLogs(user, isOverride, file) {
-    const hasFailed = false;
-    const logs = jsonfile.readFileSync(file, err => {
-        if (err) {
-            console.log(err);
-            hasFailed = true;
-        }
-    });
-
-    let data;
-
-    if (hasFailed || !logs.removedWarnings || typeof logs.removedWarnings !== "object") { return false; }
-
-    data = jsonfile.readFileSync(botdata);
-
-    if (isOverride) {
-        data.removedWarnings = logs.removedWarnings;
-
-    } else {
-        data.removedWarnings = data.removedWarnings.concat(logs.removeAllWarnings);
-    }
-
-    jsonfile.writeFileSync(botdata, data => {
-        if (err) throw err;
-    });
-    return true;
-}
-
-
-function showLogs(user) {
-    const logsPerMsg = 15;
-    const timeBetweenMsgs = 3000;
-
-    let lineReader;
-    let logs = [];
-    let response = '';
-
-    // Nested function
-    function sendLogs() {
-        fs.readFile(logsFile, 'utf8', (err, data) => {
-            if (err) throw err;
-            let logsWithoutEND = data.replace('\r\nEND', '');
-            fs.writeFileSync(logsFile, logsWithoutEND);
-        });
-
-        if (logs.length === 0) {
-            user.send('I have nothing in my logs.');
-            return;
-        }
-
-        for (let i = 0; i < logs.length; i++) {
-            response += `${ logs[i] }\n`;
-            if (i % logsPerMsg === 0) {
-                let res = response;
-                response = '';
-                setTimeout(() => {
-                    user.send(res);
-                }, timeBetweenMsgs);                
-            }
-        }
-        if (response) {
-            user.send(response);
-        } else {
-            user.send('tada');
-        }
-    }
-
-    fs.appendFileSync(logsFile, '\r\nEND', err => {
-        if (err) throw err;
-    });
-
-    lineReader = readline.createInterface({
-        input: fs.createReadStream(logsFile)
-    });
-
-    lineReader.on('line', line => {
-        if (line !== 'END') {
-            logs.push(line);
-        } else {
-            sendLogs();
-        }
-    });
-    
-    // user.send('```' + response + '\n \n To delete all of my logs, use the !clearLogs command.\n To see who has a specific ID in the Discord server, type <@[ID]> and press enter.\n This will mention the user with that ID.\n```');
-}
-
-
-function clearLogs() {
-    let data = jsonfile.readFileSync(botdata);
-    let logs = data.removedWarnings;
-
-    logs = [];
-
-    data.removedWarnings = logs;
-    jsonfile.writeFileSync(botdata, data, err => {
-        if (err) throw err;
-    });
-}
-
 // Check every hour if it can do something interesting on its own
 setInterval(() => { 
-    listManager.removeUserFromList('warned', warnTimer, warningManager.removeWarning);
-    listManager.removeUserFromList('trolls', trollTimer);
+    let warnings = jsonfile.readFileSync(warningsFile);
+    let trolls = jsonfile.readFileSync(trollsFile);
+    let warnTimer = jsonfile.readFileSync(settingsFile).warnTimer;
+    let trollTimer = jsonfile.readFileSync(settingsFile).trollTimer;
+    let warningsCleared = listManager.removeUsersWithExpiredTimers(warnings, warnTimer);
+    let trollsCleared = listManager.removeUsersWithExpiredTimers(trolls, trollTimer);
+
+    jsonfile.writeFileSync(warningsFile, warningsCleared, err => {
+        if (err) console.log(err);
+    });
+    jsonfile.writeFileSync(trollsFile, trollsCleared, err => {
+        if (err) console.log(err);
+    });
 
 }, refreshTimer);
 
